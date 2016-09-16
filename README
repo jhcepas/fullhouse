@@ -1,0 +1,12 @@
+basic job balancer in python
+
+1) Start master in a terminal:
+```
+ python master.py
+```
+
+2) submit jobs using the fullhose API or `fsub`
+
+```
+fsub --cpu 5 -u jaime 'ls -ltr; sleep 10'
+```
