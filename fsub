@@ -10,9 +10,9 @@ def main(args):
     job["cmd"] = ' '.join(args.script)
     job["user"] = args.username
     job["cpu"] = args.cpu
+    job["ntasks"] = args.tasks
     jid = db.register_job(job)
     print 'submitted job', jid
-
 
 if __name__ == '__main__':
     parser = ArgumentParser()
@@ -24,6 +24,7 @@ if __name__ == '__main__':
     parser.add_argument('--cpu', default='1', type=int)
     parser.add_argument('-n', '--jobname', type=str, default='')
     parser.add_argument('-u', '--username', type=str, default=getpass.getuser())
+    parser.add_argument('-t', '--tasks', type=int, default=1)
     parser.add_argument('script', type=str, metavar="bash script", nargs='+')
 
     args = parser.parse_args()

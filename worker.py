@@ -22,7 +22,7 @@ def main(args):
     if not job:
         raise ValueError('Job not found: %s' %args.jobid)
 
-    db.update_job(job, status='R', stime=time.time())
+    db.update_job(job, status='R', stime=time.time(), last_task=job['last_task']+1)
     # ensure db is updated if process dies
     ACTIVE_JOBID = job["jid"]
     signal.signal(signal.SIGTERM, clean_exit)
@@ -42,15 +42,18 @@ def main(args):
     except:
         db = FullHouseConnection(args.db_host, args.db_port, args.db_name)
         send_email()
-        db.update_job(job, status='E', etime=time.time())
+        db.update_job(job, status='E', end_time=time.time())
         raise
     else:
         db = FullHouseConnection(args.db_host, args.db_port, args.db_name)
         if exitcode == 0:
-            db.update_job(job, status='D', etime=time.time())
+            if job['last_task'] == job['ntasks']:
+                db.update_job(job, status='D', end_time=time.time(), exitcode=exitcode)
+            else:
+                db.update_job(job, status='W', end_time=time.time(), exitcode=exitcode)
             send_email()
         else:
-            db.update_job(job, status='R', etime=time.time(), exitcode=exitcode)
+            db.update_job(job, status='E', end_time=time.time(), exitcode=exitcode)
             send_email()
 
 def send_email():
