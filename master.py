@@ -3,8 +3,7 @@ from collections import defaultdict
 import time
 from pprint import pprint
 from argparse import ArgumentParser
-from fullhouse import FullHouseConnection
-
+from fullhouse.job_handler import FullHouseConnection
 USER_WEIGHT = 1
 WAIT_WEIGHT = 1
 
@@ -59,6 +58,8 @@ def schedule(args):
             print next_job["user"], pri
             print next_job['cmd']
             os.system('python worker.py -j %s &'%next_job['jid'])
+            
+        print 'Waiting %s secs' %(args.schedule_time)
         time.sleep(args.schedule_time)
 
 if __name__ == '__main__':

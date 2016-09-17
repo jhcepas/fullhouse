@@ -1,17 +1,18 @@
 import sys
+import os
 from subprocess import Popen, PIPE
 import time
 import signal
 
 from argparse import ArgumentParser
-from fullhouse import FullHouseConnection
+from fullhouse.job_handler import FullHouseConnection
 
 ACTIVE_JOBID = None
 
 def clean_exit(signum, frame):
     if ACTIVE_JOBID:
         db = FullHouseConnection(args.db_host, args.db_port, args.db_name)
-        job = db.update_job(ACTIVE_JOBID, status='E')
+        job = db.update_job(ACTIVE_JOBID, status='E', exitcode=666)
     sys.exit(666)
 
 def main(args):
@@ -22,7 +23,8 @@ def main(args):
     if not job:
         raise ValueError('Job not found: %s' %args.jobid)
 
-    db.update_job(job, status='R', stime=time.time(), last_task=job['last_task']+1)
+    current_task = job['last_task']+1
+    db.update_job(job, status='R', stime=time.time(), last_task=current_task)
     # ensure db is updated if process dies
     ACTIVE_JOBID = job["jid"]
     signal.signal(signal.SIGTERM, clean_exit)
@@ -30,34 +32,51 @@ def main(args):
     #signal.signal(signal.SIGKILL, clean_exit)
     #signal.signal(signal.SIGSTOP, clean_exit)
 
-    cmd = job["cmd"]
+    os.environ["FULLHOUSE_TASK"] = str(current_task)
+    #cmd = cmd.replace('FULLHOUSE_TASK', str(current_task))
     try:
-        p = Popen(cmd, shell=True, stdout=PIPE, stderr=PIPE)
+        if job.get('wd', None):
+            os.chdir(job['wd'])
+        else:
+            home = os.path.expanduser("~")
+            os.chdir(home)
+
+        cmd = job["cmd"]
+        if job['log']:
+            OUT = open("%s.%s.out.txt" %(job["log"], current_task), "w")
+            ERR = open("%s.%s.err.txt" %(job["log"], current_task), "w")
+        else:
+            OUT = open("%s.%s.out.txt" %(job["jid"], current_task), "w")
+            ERR = open("%s.%s.err.txt" %(job["jid"], current_task), "w")
+
+        p = Popen(cmd, shell=True, stdout=OUT, stderr=ERR)
         db.update_job(job, pid=p.pid)
-        output, err = p.communicate()
-        exitcode = p.returncode
         p.wait()
-        #exitcode = subprocess.call(cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-        send_email()
+
+        exitcode = p.returncode
+        print >>ERR, "exit:", exitcode
+        print "---------------------------------", exitcode
+        #OUT.flush()
+        #ERR.flush()
     except:
         db = FullHouseConnection(args.db_host, args.db_port, args.db_name)
-        send_email()
-        db.update_job(job, status='E', end_time=time.time())
+        send_email("Exception")
+        db.update_job(job, status='X', end_time=time.time())
         raise
     else:
         db = FullHouseConnection(args.db_host, args.db_port, args.db_name)
         if exitcode == 0:
-            if job['last_task'] == job['ntasks']:
+            if current_task == job['ntasks']:
                 db.update_job(job, status='D', end_time=time.time(), exitcode=exitcode)
             else:
                 db.update_job(job, status='W', end_time=time.time(), exitcode=exitcode)
-            send_email()
+            send_email('Done')
         else:
             db.update_job(job, status='E', end_time=time.time(), exitcode=exitcode)
-            send_email()
+            send_email('Error')
 
-def send_email():
-    print 'sending email....'
+def send_email(msg):
+    print 'sending email....', msg
     pass
 
 if __name__ == '__main__':

@@ -9,7 +9,7 @@ def printjob(job):
         print " % 20s: %s " %(k, v)
 
 class FullHouseConnection(object):
-    def __init__(self, db_host, db_port, db_name):
+    def __init__(self, db_host="localhost", db_port=27017, db_name='fullhouse'):
         self.client = MongoClient(db_host, db_port)
         self.db = self.client[db_name]
         self.jobs = self.db.jobs
@@ -17,8 +17,10 @@ class FullHouseConnection(object):
     def get_job(self, jobid):
         if isinstance(jobid, dict):
             jobid = jobid["jid"]
-        print {"jid":jobid}
         return self.jobs.find_one({"jid":jobid})
+
+    def find_job(self, **kw):
+        return self.jobs.find_one(kw)
 
     def update_job(self, jobid, **kw):
         if isinstance(jobid, dict):
@@ -40,9 +42,9 @@ class FullHouseConnection(object):
 
     def template_job(self, **kw):
         job = {'jobname':None, 'cpu':1, 'date':None, 'first_launch':0, 'last_launch':0,
-               'end_time':0, 'user':None, 'stdout':None, 'stderr':None,
+               'end_time':0, 'user':None, 'stdout':None, 'stderr':None, 'wd':None,
                'exitcode':None, 'status':'W', 'tasks':1, "last_task":0, 'cmd':None, 'jid':None,
-               'deps':None}
+               'deps':None, 'log':None}
 
         job.update(kw)
         return job
