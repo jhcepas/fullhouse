@@ -43,16 +43,17 @@ class FullHouseConnection(object):
     def template_job(self, **kw):
         job = {'jobname':None, 'cpu':1, 'date':None, 'first_launch':0, 'last_launch':0,
                'end_time':0, 'user':None, 'stdout':None, 'stderr':None, 'wd':None,
-               'exitcode':None, 'status':'W', 'tasks':1, "last_task":0, 'cmd':None, 'jid':None,
-               'deps':None, 'log':None}
+               'exitcode':None, 'status':'Q', 'tasks':1, "last_task":0, 'cmd':None, 'jid':None,
+               'deps':[], 'log':None, 'priority':0.0, 'user_priority':0.0, 'running':[], "complete":0} 
 
         job.update(kw)
         return job
 
+    def search_jobs(self, query, payload=None):
+        return list(self.jobs.find(query, payload))
+
     def active_jobs(self):
-        query = {"$or":
-                 [{"status": "W"},
-                  {"status": "R"}]}
+        query = {"status": "Q"}
         return list(self.jobs.find(query))
 
     def all_jobs(self):
@@ -69,13 +70,13 @@ def test():
 
     db = FullHouseConnection('localhost', 27017, 'fullhouse')
     for x in range(4):
-        job = db.template_job(jobname='test4', status='W', cpu=5, user='lore', cmd=cmd)
+        job = db.template_job(jobname='test4', status='Q', cpu=5, user='lore', cmd=cmd)
         db.register_job(job)
-        job = db.template_job(jobname='test2', status='W', cpu=2, user='jaime', cmd=cmd)
+        job = db.template_job(jobname='test2', status='Q', cpu=2, user='jaime', cmd=cmd)
         db.register_job(job)
-        job = db.template_job(jobname='test3', status='W', cpu=2, user='lore', cmd=cmd)
+        job = db.template_job(jobname='test3', status='Q', cpu=2, user='lore', cmd=cmd)
         db.register_job(job)
-        job = db.template_job(jobname='test4', status='W', cpu=5, user='laura', cmd=cmd)
+        job = db.template_job(jobname='test4', status='Q', cpu=5, user='laura', cmd=cmd)
 
 
 if __name__ == '__main__':

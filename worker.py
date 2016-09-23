@@ -7,6 +7,8 @@ import signal
 from argparse import ArgumentParser
 from fullhouse.job_handler import FullHouseConnection
 
+import daemon
+
 ACTIVE_JOBID = None
 
 def clean_exit(signum, frame):
@@ -23,8 +25,6 @@ def main(args):
     if not job:
         raise ValueError('Job not found: %s' %args.jobid)
 
-    current_task = job['last_task']+1
-    db.update_job(job, status='R', stime=time.time(), last_task=current_task)
     # ensure db is updated if process dies
     ACTIVE_JOBID = job["jid"]
     signal.signal(signal.SIGTERM, clean_exit)
@@ -32,8 +32,9 @@ def main(args):
     #signal.signal(signal.SIGKILL, clean_exit)
     #signal.signal(signal.SIGSTOP, clean_exit)
 
+    current_task = args.tasknumber
     os.environ["FULLHOUSE_TASK"] = str(current_task)
-    #cmd = cmd.replace('FULLHOUSE_TASK', str(current_task))
+
     try:
         if job.get('wd', None):
             os.chdir(job['wd'])
@@ -53,31 +54,34 @@ def main(args):
         db.update_job(job, pid=p.pid)
         p.wait()
 
+        print >>ERR, "exitcode:", p.returncode
         exitcode = p.returncode
-        print >>ERR, "exit:", exitcode
-        print "---------------------------------", exitcode
-        #OUT.flush()
-        #ERR.flush()
+        OUT.flush()
+        ERR.flush()
     except:
         db = FullHouseConnection(args.db_host, args.db_port, args.db_name)
-        send_email("Exception")
-        db.update_job(job, status='X', end_time=time.time())
+        db.jobs.update_one({'jid':job['jid']}, {"$set": {"status":"E"},
+                                                "$pull": {'running': current_task}, "$inc":{"complete":1}})
+        send_email(job, "Aborted")
         raise
     else:
         db = FullHouseConnection(args.db_host, args.db_port, args.db_name)
         if exitcode == 0:
-            if current_task == job['ntasks']:
-                db.update_job(job, status='D', end_time=time.time(), exitcode=exitcode)
+            if current_task == job['tasks']:
+                db.jobs.update_one({'jid':job['jid']}, {"$set": {"end_time":time.time(), "exitcode":exitcode},
+                                                        "$pull": {'running': current_task}, "$inc":{"complete":1}})
             else:
-                db.update_job(job, status='W', end_time=time.time(), exitcode=exitcode)
-            send_email('Done')
+                db.jobs.update_one({'jid':job['jid']}, {"$set": {"end_time":time.time(), "exitcode":exitcode},
+                                                        "$pull": {'running': current_task}, "$inc":{"complete":1}})
         else:
-            db.update_job(job, status='E', end_time=time.time(), exitcode=exitcode)
-            send_email('Error')
+            db.jobs.update_one({'jid':job['jid']}, {"$set": {"status":"E", "end_time":time.time(), "exitcode":exitcode},
+                                                    "$pull": {'running': current_task}, "$inc":{"complete":1}})
+            send_email(job, 'Failed')
 
-def send_email(msg):
-    print 'sending email....', msg
-    pass
+def send_email(job, msg):
+    if "email" in job:
+        cmd = 'echo "" | /home/huerta/eggnog/eggnog-4.5/src/mappermail -s "Job (%s) %s" %s' %(job["jobname"], msg, str(job['email']))
+        s = os.system(cmd)
 
 if __name__ == '__main__':
     parser = ArgumentParser()
@@ -93,7 +97,14 @@ if __name__ == '__main__':
     parser.add_argument('--run', action='store_true')
 
     # if already in DB
-    parser.add_argument('-j', dest="jobid", type=str)
+    parser.add_argument('-j', dest="jobid", type=str, required=True)
+    parser.add_argument('-t', dest="tasknumber", type=int, required=True)
 
     args = parser.parse_args()
-    main(args)
+
+
+
+    with daemon.DaemonContext():
+        main(args)
+
+

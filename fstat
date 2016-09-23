@@ -16,7 +16,7 @@ if __name__ == '__main__':
     parser.add_argument('--db_host', type=str, default='localhost')
     parser.add_argument('--db_port', type=int, default=27017)
     parser.add_argument('--db_name', type=str, default='fullhouse')
-    parser.add_argument('-c', dest='columns', type=str, nargs='+', default='user jobname status cpu ntasks last_task'.split())
+    parser.add_argument('-c', dest='columns', type=str, nargs='+', default='user jobname status cpu tasks last_task complete running'.split())
 
     # If submitting from here
     parser.add_argument('jobids', type=str, metavar="jobs", nargs='*')

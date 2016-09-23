@@ -10,7 +10,7 @@ def main(args):
     job["cmd"] = ' '.join(args.script)
     job["user"] = args.username
     job["cpu"] = args.cpu
-    job["ntasks"] = args.tasks
+    job["tasks"] = args.tasks
     jid = db.register_job(job)
     print 'submitted job', jid
 
